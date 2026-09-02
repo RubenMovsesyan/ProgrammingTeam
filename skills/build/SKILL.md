@@ -196,8 +196,8 @@ How to build / run / test:
 <paste the block from spec.md>
 
 Write your finding to: .team/findings/<role>-U-xx.md
-Use the finding format below. Writing that file is your last step; the lock on
-these files releases only when it exists.
+Use the finding format from your role instructions. Writing that file is your
+last step; the lock on these files releases only when it exists.
 
 Do not modify any file outside: <role-specific allowlist — reviewer: the files
 listed above and .team/findings/**; test-writer: tests/** and .team/findings/**;

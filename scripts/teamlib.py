@@ -212,6 +212,101 @@ def criteria_counts(team):
     return counts
 
 
+# --- whole-team snapshot and next actions -------------------------------------
+
+PAUSE_FILE = "paused"
+FINAL_ROLES = ("qa", "spec-checker")
+FRESH_SECONDS = 60
+
+
+def paused(team):
+    return (Path(team) / PAUSE_FILE).exists()
+
+
+def fresh_unread_findings(team, seconds=FRESH_SECONDS):
+    """Unread findings written within the last `seconds` — the signature of a
+    specialist that has just finished (used to tell its Stop from the engineer's)."""
+    import time
+    now = time.time()
+    return [p.name for p in (Path(team) / "findings").glob("*.md")
+            if not finding_status(p) and now - p.stat().st_mtime < seconds]
+
+
+def fmt_age(minutes):
+    if minutes is None:
+        return "unknown"
+    return f"{int(minutes)}m" if minutes < 120 else f"{minutes / 60:.1f}h"
+
+
+def snapshot(team, stale_minutes=STALE_MINUTES):
+    """Everything the status report, the context hook and the Stop gate need."""
+    team = Path(team)
+    crit = criteria(team)
+    plan = plan_rows(team)
+    return {
+        "team_dir": str(team),
+        "spec_title": spec_title(team),
+        "has_spec": crit is not None,
+        "criteria": [{"id": i, "status": s, "text": t} for i, s, t in (crit or [])],
+        "plan": plan,
+        "locks": [{
+            "unit": l.unit, "stage": l.stage, "files": l.files, "waiting": l.waiting,
+            "held": l.held, "age_minutes": l.age_minutes(), "stale": l.stale(stale_minutes), "error": l.error,
+        } for l in load_locks(team)],
+        "findings": findings(team),
+        "free_todo": [r["unit"] for r in free_todo_units(team)],
+        "paused": paused(team),
+        "stale_minutes": stale_minutes,
+    }
+
+
+def next_actions(d):
+    """Ordered, human-readable actions for the engineer. Empty list == nothing open."""
+    acts = []
+    if not d["has_spec"]:
+        return []
+    unread = [f["file"] for f in d["findings"] if not f["status"]]
+    held = [l for l in d["locks"] if l["held"]]
+    stale = [l for l in held if l["stale"]]
+    broken = [l for l in d["locks"] if l["error"]]
+    plan = d["plan"] or []
+    counts = {s: sum(1 for r in plan if r["status"] == s) for s in PLAN_STATUSES}
+    crit = d["criteria"]
+
+    if unread:
+        acts.append(f"Process {len(unread)} unread finding(s) (Phase 5): " + ", ".join(unread))
+    for l in broken:
+        acts.append(f"Lock {l['unit']} is unreadable: fix or remove `.team/locks/{l['unit']}.json`.")
+    for l in stale:
+        acts.append(f"Lock {l['unit']} has waited {fmt_age(l['age_minutes'])} on {', '.join(l['waiting'])} "
+                    f"(> {d['stale_minutes']}m): check the subagent panel; re-dispatch, or run `/team:release {l['unit']}`.")
+    failed = [c["id"] for c in crit if c["status"] == "failed"]
+    if failed:
+        acts.append("Failed criteria " + ", ".join(failed) + ": make sure fix units exist and are prioritised.")
+    if d["plan"] is None:
+        acts.append("Spec exists but no plan.md: write the plan (Phase 2).")
+    elif d["free_todo"]:
+        acts.append("Pick a unit whose files are free (Phase 4): " + ", ".join(d["free_todo"]))
+    elif counts["todo"] and held:
+        oldest = max(held, key=lambda l: l["age_minutes"] or 0)
+        acts.append(f"Nothing pickable — every todo unit touches locked files. Wait on lock {oldest['unit']} "
+                    f"(waiting on {', '.join(oldest['waiting'])}) with a blocking read.")
+    open_units = counts["todo"] or counts["in-progress"] or counts["verifying"] or counts["needs-fix"]
+    all_verified = bool(crit) and all(c["status"] == "verified" for c in crit)
+    have_final = {f["role"] for f in d["findings"] if f["unit"] == "final"}
+    if all_verified and not held and not open_units and not unread:
+        missing = [r for r in FINAL_ROLES if r not in have_final]
+        if missing:
+            acts.append("All criteria verified, no open units or locks: run the Phase 6 final pass (" + ", ".join(missing) + ").")
+    elif not acts and held:
+        acts.append("Waiting on specialists: " + ", ".join(f"{l['unit']} ({', '.join(l['waiting'])})" for l in held))
+    elif not acts and (open_units or not all_verified):
+        acts.append("Work remains: " + (
+            f"{counts['in-progress']} in-progress, {counts['verifying']} verifying, {counts['needs-fix']} needs-fix unit(s)"
+            if open_units else "criteria still unverified — add units that serve them."))
+    return acts
+
+
 # --- paths --------------------------------------------------------------------
 
 def project_relative(path, team, base=None):

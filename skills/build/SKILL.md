@@ -75,7 +75,8 @@ Repeat:
 2. **Implement.** Set the unit `in-progress` in `plan.md`. Do the work. Run a
    smoke check (build passes, the thing runs). Do not write the unit's tests
    beyond that; the test-writer does.
-3. **Commit.** `git add -A && git commit -m "U-xx: <title>"`. Note the previous
+3. **Commit.** Stage only the files you changed (never `git add -A`; specialists
+   commit their own files) and `git commit -m "U-xx: <title>"`. Note the previous
    commit as `<base>`.
 4. **Lock.** Write `.team/locks/U-xx.json` (see template) with
    `files = git diff --name-only <base>..HEAD` minus anything under `.team/`.
@@ -103,7 +104,8 @@ For each new file in `.team/findings/`:
    `stage` to `verify`. Then dispatch stage 2: `test-writer`, `qa`, and
    `spec-checker` if listed, all `is_background=true`, against the new `<head>`.
    Treat any behavioural change the reviewer reports as a normal `fail` issue
-   (fix / defer / reject).
+   (fix / defer / reject). A later `U-xx: tests` commit from the test-writer
+   moves HEAD again but does not change the lock: `files` stays as derived here.
 3. Act:
    - `pass` — nothing to do beyond bookkeeping.
    - `fail` — for each issue decide: fix (create `U-xx-fixN` unit serving the
@@ -216,8 +218,9 @@ Use the finding format from your role instructions. Writing that file is your
 last step; the lock on these files releases only when it exists.
 
 Do not modify any file outside: <role-specific allowlist — reviewer: the files
-listed above and .team/findings/**; test-writer: tests/** and .team/findings/**;
-qa and spec-checker: .team/findings/** only>.
+listed above and .team/findings/**; test-writer: the project's test location
+(default tests/) and .team/findings/**; qa and spec-checker: .team/findings/**
+only>.
 
 Role instructions:
 <role-specific task, one paragraph>
@@ -225,10 +228,12 @@ Role instructions:
 
 Role-specific task paragraphs:
 
-- **test-writer** — Write unit tests under `tests/` covering the behaviour this
-  unit introduces for its criteria. Run them. Report which pass and which fail,
-  with the failure output. Failing tests that reveal a real defect are the point;
-  do not weaken a test to make it pass.
+- **test-writer** — Detect the project's test convention (else create `tests/`).
+  Write unit tests covering the behaviour this unit introduces for its criteria.
+  Run them and the whole existing suite. Commit only your test files as
+  `U-xx: tests`. Report which pass and which fail with the output, and any
+  regression separately. Failing tests that reveal a real defect are the point;
+  never edit source and never weaken a test to make it pass.
 - **qa** — Scope: unit `U-xx`, criteria AC-n, AC-m. Build and run the project
   per the instructions. Test the behaviour from the spec first, without reading
   the implementation, and record the results; then read the diff for additional

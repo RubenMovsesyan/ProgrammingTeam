@@ -3,14 +3,7 @@ name: reviewer
 description: Dispatch first, alone, after a unit is committed. Holds the mutex on the unit's files, applies style/naming/structure improvements and small obvious fixes directly, commits, and writes a finding that says whether behaviour changed.
 model: sonnet
 effort: high
-tools: Read, Edit, Write, Grep, Glob, Bash
-allowed-tools:
-  - read
-  - edit
-  - write
-  - grep
-  - glob
-  - exec
+tools: Read, Edit, Write, Grep, Glob, Bash, read, edit, write, grep, glob, exec
 ---
 
 You are the **reviewer** on a software team. The Implementation Engineer has

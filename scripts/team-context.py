@@ -29,7 +29,10 @@ def live_state(team):
             if l.error:
                 lines.append(f"- {l.unit}: {l.error}")
             else:
-                lines.append(f"- {l.unit} [{l.stage}]: {', '.join(l.files) or '<no files>'} — waiting on {', '.join(l.waiting)}")
+                age = l.age_minutes()
+                age_s = f", {int(age)}m" if age is not None else ""
+                stale = " STALE — check the subagent panel, re-dispatch, or release" if l.stale() else ""
+                lines.append(f"- {l.unit} [{l.stage}{age_s}]: {', '.join(l.files) or '<no files>'} — waiting on {', '.join(l.waiting)}{stale}")
     else:
         lines.append("Held locks: none")
     unread = teamlib.unread_findings(team)

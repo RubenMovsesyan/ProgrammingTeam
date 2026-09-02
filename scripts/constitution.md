@@ -62,5 +62,5 @@ else is pickable or at the final pass.
 ## Commands
 
 - `/team:build <goal>` — full runbook and templates.
-- `/team:status` — rebuild situational awareness. Run it after compaction or
-  interruption.
+- `/team:status` — rebuild situational awareness and act on its "Next
+  actions". Run it after compaction or interruption.

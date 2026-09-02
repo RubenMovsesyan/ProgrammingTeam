@@ -1,0 +1,6 @@
+{
+  "name": "team",
+  "version": "0.1.0",
+  "description": "One implementation engineer, many background specialists: spec, plan, build in units, verify asynchronously under a per-file mutex, loop until the spec holds.",
+  "keywords": ["subagents", "orchestration", "qa", "review", "tdd"]
+}

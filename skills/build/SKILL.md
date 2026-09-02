@@ -97,10 +97,11 @@ For each new file in `.team/findings/`:
 1. Read it. The header says `verdict: pass | fail | blocked`.
 2. **If it is the reviewer's finding**, the reviewer may have committed changes.
    Run `git rev-parse HEAD`; if it moved, update `head` in the lock file and
-   re-derive `files` (`git diff --name-only <base>..HEAD`). Then dispatch
-   stage 2: `test-writer`, `qa`, and `spec-checker` if listed, all
-   `is_background=true`, against the new `<head>`. Treat any behavioural change
-   the reviewer reports as a normal `fail` issue (fix / defer / reject).
+   re-derive `files` (`git diff --name-only <base>..HEAD`). Set the lock's
+   `stage` to `verify`. Then dispatch stage 2: `test-writer`, `qa`, and
+   `spec-checker` if listed, all `is_background=true`, against the new `<head>`.
+   Treat any behavioural change the reviewer reports as a normal `fail` issue
+   (fix / defer / reject).
 3. Act:
    - `pass` — nothing to do beyond bookkeeping.
    - `fail` — for each issue decide: fix (create `U-xx-fixN` unit serving the
@@ -178,11 +179,15 @@ Fix units are named U-xx-fixN and serve the same criteria as U-xx.
   "base": "<git sha before the unit>",
   "head": "<git sha of the unit commit>",
   "files": ["src/a.py", "src/b.py"],
-  "verifiers": ["test-writer", "qa", "reviewer"]
+  "verifiers": ["reviewer", "test-writer", "qa"],
+  "stage": "review"
 }
 ```
 
 The lock is held while any verifier lacks `.team/findings/<role>-U-xx.md`.
+`stage` is `review` while the reviewer alone owns the files, `verify` once the
+read-only verifiers are dispatched. A hook refuses edits to files in a
+`verify`-stage lock.
 
 ### Dispatch prompt (fill every field)
 

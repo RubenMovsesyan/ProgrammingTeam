@@ -129,8 +129,9 @@ When every criterion in `spec.md` is `verified`, no unit is `todo` or
 
 1. Dispatch `qa` and `spec-checker` together in the **background** against the
    whole spec, then wait for both (`read_subagent block=true`):
-   - `qa`: "Exercise every acceptance criterion in `.team/spec.md` end to end on
-     the current HEAD. Write your finding to `.team/findings/qa-final.md`."
+   - `qa`: "Scope: final, whole spec, range `<baseline>..HEAD`. Exercise every
+     acceptance criterion in `.team/spec.md` end to end and try to break the
+     product. Write your finding to `.team/findings/qa-final.md`."
    - `spec-checker`: "Verification mode, unit `final`, range
      `<baseline>..HEAD`, all criteria in `.team/spec.md`. Write your finding to
      `.team/findings/spec-checker-final.md`."
@@ -228,10 +229,11 @@ Role-specific task paragraphs:
   unit introduces for its criteria. Run them. Report which pass and which fail,
   with the failure output. Failing tests that reveal a real defect are the point;
   do not weaken a test to make it pass.
-- **qa** — Build and run the project per the instructions. Exercise the
-  behaviour for the listed criteria as a user would, including edge and error
-  cases. Do not read the implementation first; test the behaviour. Report
-  reproducible steps for every defect.
+- **qa** — Scope: unit `U-xx`, criteria AC-n, AC-m. Build and run the project
+  per the instructions. Test the behaviour from the spec first, without reading
+  the implementation, and record the results; then read the diff for additional
+  edge cases. Report exact reproduction steps for every defect. Leave the
+  working tree exactly as you found it.
 - **reviewer** — Read the diff. You hold the mutex on the listed files alone and
   may edit them. Apply style, naming, structure, and readability improvements
   directly, and fix small, obvious correctness or security defects. Do not change

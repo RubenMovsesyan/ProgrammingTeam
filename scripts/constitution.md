@@ -33,7 +33,8 @@ This protocol is active only when the user invokes `/team:build` or `.team/` exi
    every lock is released, and every finding is resolved. Findings that reveal
    unmet criteria become new units of work; keep looping until the spec holds.
    This applies at any scope — a whole application loops the same way a single
-   function does, just with more units.
+   function does, just with more units. A Stop gate blocks you once per turn
+   while work is open; if the user wants to talk instead, run `/team:pause`.
 
 ## Units of work
 
@@ -58,9 +59,14 @@ else is pickable or at the final pass.
   test-writer's job.
 - Don't block waiting on specialists mid-build. Pick another unit.
 - Don't edit a locked file, even to fix a finding about it.
+- Don't edit or delete lock files by hand. A lock marked STALE (no finding for
+  30+ minutes) is released with `/team:release <unit>`, which records a
+  `blocked` finding you then process like any other.
 
 ## Commands
 
 - `/team:build <goal>` — full runbook and templates.
 - `/team:status` — rebuild situational awareness and act on its "Next
   actions". Run it after compaction or interruption.
+- `/team:release <unit>` — release a stale lock via synthetic blocked findings.
+- `/team:pause` / `/team:resume` — turn the Stop gate off / back on.

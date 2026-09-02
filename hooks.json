@@ -1,0 +1,14 @@
+{
+  "PostCompaction": [
+    {
+      "matcher": "",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/team-context.py\" PostCompaction",
+          "timeout": 5
+        }
+      ]
+    }
+  ]
+}

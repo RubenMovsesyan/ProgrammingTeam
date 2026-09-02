@@ -49,7 +49,8 @@ This protocol is active only when the user invokes `/team:build` or `.team/` exi
 
 Every dispatch includes: unit id, file list or git range, how to build/run/test,
 the findings path to write, and what not to touch. Use the template in
-`/team:build`. Background mode always, except the final QA pass.
+`/team:build`. Background mode always; you only wait on results when nothing
+else is pickable or at the final pass.
 
 ## Don'ts
 

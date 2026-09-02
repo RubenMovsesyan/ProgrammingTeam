@@ -53,13 +53,15 @@ the lock is built from the real diff.
 
 ## Phase 3 — Warm-up dispatch
 
-Dispatch `spec-checker` once in the **foreground** with the task "Review
-`.team/spec.md`: is every acceptance criterion observable and checkable? Write
-your finding to `.team/findings/spec-checker-U-00.md`." Approve the tools it
-asks for. This validates the spec and pre-approves the specialist tool set so
-that later background dispatches are not silently denied.
+Dispatch `spec-checker` once in the **foreground** with the task "Spec-review
+mode. Review `.team/spec.md`: is every acceptance criterion observable and
+checkable, and do the build/run/test instructions work? Write your finding to
+`.team/findings/spec-checker-U-00.md`." Approve the tools it asks for. This
+validates the spec and pre-approves the specialist tool set so that later
+background dispatches are not silently denied.
 
-Fix any criteria it flags, then mark the finding `handled`.
+Apply every `rewrite:` it proposes (or reword better), fix the run instructions
+if they failed, then mark the finding `handled`.
 
 ## Phase 4 — Build loop
 
@@ -112,8 +114,11 @@ For each new file in `.team/findings/`:
      with the finding path as extra context.
 4. Append the status line to the finding: `status: handled`, `status: deferred:
    <why>`, or `status: rejected: <why>`.
-5. If a `spec-checker` finding marks criteria as met, flip those criteria to
-   `verified` in `spec.md`. Only the spec-checker flips criteria, never you.
+5. If it is a `spec-checker` finding, update `spec.md` mechanically from its
+   `## Criteria` lines: `met` → `status: verified`, `not met` → `status: failed`,
+   `cannot determine` → leave as is and treat the reason as a `fail` issue
+   (split the unit or reword the criterion). Only spec-checker findings change
+   criterion status, never your own judgment.
 6. When every verifier of the unit has a finding and none is `fail`-with-fixes
    pending, set the unit `verified` in `plan.md`; otherwise `needs-fix`.
 
@@ -122,10 +127,15 @@ For each new file in `.team/findings/`:
 When every criterion in `spec.md` is `verified`, no unit is `todo` or
 `in-progress` or `verifying`, and no lock is held:
 
-1. Dispatch `qa` in the **foreground** against the whole spec: "Exercise every
-   acceptance criterion in `.team/spec.md` end to end on the current HEAD. Write
-   your finding to `.team/findings/qa-final.md`."
-2. If it fails anything, create fix units and return to Phase 4.
+1. Dispatch `qa` and `spec-checker` together in the **background** against the
+   whole spec, then wait for both (`read_subagent block=true`):
+   - `qa`: "Exercise every acceptance criterion in `.team/spec.md` end to end on
+     the current HEAD. Write your finding to `.team/findings/qa-final.md`."
+   - `spec-checker`: "Verification mode, unit `final`, range
+     `<baseline>..HEAD`, all criteria in `.team/spec.md`. Write your finding to
+     `.team/findings/spec-checker-final.md`."
+2. Process both findings (Phase 5). If anything fails or any criterion is no
+   longer `met`, create fix units and return to Phase 4.
 3. Otherwise report to the user: a table of criteria and their status, counts of
    findings by verdict, and every `deferred` / `rejected` item with its reason.
 

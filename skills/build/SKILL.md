@@ -7,7 +7,12 @@ triggers:
 ---
 
 You are the Implementation Engineer. Run the loop below until every acceptance
-criterion in `.team/spec.md` is verified. The hard rules in the team constitution
+criterion in `.team/spec.md` is verified — then stop. This skill is a **one-off**:
+when Phase 6 ends the team goes dormant and later prompts are answered normally,
+without the loop. `/team:audit` is how work done after that gets verified.
+
+Run the loop below until every acceptance criterion in `.team/spec.md` is
+verified. The hard rules in the team constitution
 (boundary, mutex, findings, done) apply throughout; this skill is the procedure.
 
 Specialist profiles you can dispatch: `test-writer`, `qa`, `reviewer`,
@@ -16,20 +21,33 @@ is its entire world.
 
 ## Phase 0 — Preflight
 
-1. If `.team/plan.md` exists, this is a **resume**: read `plan.md`, every file in
-   `locks/`, and every finding without a status line. Process unhandled findings
-   (Phase 5), then rejoin the loop at Phase 4. Skip Phases 1–3.
+1. If `.team/` exists, run `/team:status` first and branch on the mode it reports:
+   - **build** — a **resume**: read `plan.md`, every file in `locks/`, and every
+     finding without a status line. Process unhandled findings (Phase 5), then
+     rejoin the loop at Phase 4. Skip Phases 1–3.
+   - **audit** — an audit is open; finish it (`/team:audit` A2–A4) before
+     starting new work.
+   - **dormant** — a previous build finished. This is **new work on the same
+     project**: keep the existing `spec.md` and `plan.md` and extend them
+     (Phase 1), then run
+     `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/team-state.py" mode build`.
+     If unaudited commits are pending, say so and offer `/team:audit` first —
+     the user decides.
 2. Otherwise this is a fresh start. Ensure the project is a git repo
-   (`git rev-parse --is-inside-work-tree`; `git init` if not). Record
-   `git rev-parse HEAD` (or note "no commits") as the baseline.
-3. Create `.team/`, `.team/locks/`, `.team/findings/`. Add `.team/` to
+   (`git rev-parse --is-inside-work-tree`; `git init` if not).
+3. Create `.team/`, `.team/locks/`, `.team/findings/`, then
+   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/team-state.py" init`, which records
+   the baseline commit and sets the mode to `build`. Add `.team/` to
    `.gitignore` only if the user asks; by default it is committed so the trail
    survives.
 
 ## Phase 1 — Spec
 
-Write `.team/spec.md` from the goal the user gave (see template). Scope it to
-exactly what was asked — an application, a feature, or a single function.
+Write `.team/spec.md` from the goal the user gave (see template). If a spec is
+already there, **append** to it: continue the AC numbering, leave the existing
+criteria and their statuses alone (the Phase 6 final pass re-checks them), and
+add units to the existing `plan.md`. One project, one living spec. Scope the new
+criteria to exactly what was asked — an application, a feature, or a single function.
 Acceptance criteria must be observable and checkable by someone who has never
 spoken to the user. Fill in "How to build / run / test" concretely; it is copied
 verbatim into every dispatch.
@@ -139,8 +157,20 @@ When every criterion in `spec.md` is `verified`, no unit is `todo` or
      `.team/findings/spec-checker-final.md`."
 2. Process both findings (Phase 5). If anything fails or any criterion is no
    longer `met`, create fix units and return to Phase 4.
-3. Otherwise report to the user: a table of criteria and their status, counts of
-   findings by verdict, and every `deferred` / `rejected` item with its reason.
+3. Otherwise close the team:
+
+   ```sh
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/team-state.py" close
+   ```
+
+   Mode becomes `dormant` and the checkpoint advances to HEAD: the Stop gate and
+   the constitution switch off, and later prompts are answered like any ordinary
+   session — no spec, no units, no dispatches, however large the next request is.
+4. Report to the user: a table of criteria and their status, counts of findings
+   by verdict, and every `deferred` / `rejected` item with its reason. Close with
+   one line: the team is dormant, ordinary prompts no longer run the loop,
+   commits made from here on are tracked, and `/team:audit` verifies them in a
+   batch whenever they want.
 
 ---
 
@@ -200,7 +230,36 @@ Fix units are named U-xx-fixN and serve the same criteria as U-xx.
 The lock is held while any verifier lacks `.team/findings/<role>-U-xx.md`.
 `stage` is `review` while the reviewer alone owns the files, `verify` once the
 read-only verifiers are dispatched. A hook refuses edits to files in a
-`verify`-stage lock.
+`verify`-stage lock. `/team:audit` writes the same file for its `A-xx` units,
+where `base..head` spans several commits and the diff is read as
+`git diff <base>..<head> -- <files>`.
+
+### `.team/state.json` (written by `scripts/team-state.py`, never by hand)
+
+```json
+{
+  "mode": "build | audit | dormant",
+  "baseline": "<sha when the team was created>",
+  "checkpoint": "<sha the last build or audit signed off>",
+  "since": "<ISO-8601 UTC when this mode started>",
+  "budgets": {"churn": 2000, "units": 15}
+}
+```
+
+`mode` is what makes the team a one-off. `build` and `audit` inject the
+constitution and arm the Stop gate; `dormant` injects a two-line note and
+nothing else. `budgets` tune when that note starts recommending an audit:
+`pressure = max(churn / budgets.churn, units / budgets.units)`, and `>= 1.0`
+recommends one, so five big units and fifteen small ones cross together. Use
+`--baseline` on `init` or edit the budgets if a project's commits run large.
+
+### `.team/journal.jsonl` (written by `scripts/team-journal.py`)
+
+One line per commit since the checkpoint — `sha`, `ts`, `msg`, `files`, `added`,
+`deleted`, and the `intent` line the engineer recorded. A PostToolUse hook
+rebuilds it from `git log` after any command that could move HEAD, so hand-made
+commits and amends are caught too. `/team:audit` clusters these into units.
+Paths under `.team/` are excluded: bookkeeping is not work to audit.
 
 ### Dispatch prompt (fill every field)
 

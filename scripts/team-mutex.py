@@ -10,7 +10,9 @@ finding file. Its `stage` says who owns the files:
             advisory for this window only.
   verify  - read-only verifiers hold it. Nobody may edit.
 
-Paths under .team/ are never gated. On its own errors the gate fails OPEN with a
+Paths under .team/ are never gated, and nothing is gated while the team is
+dormant — no specialist is running then, so a lock left behind by an abandoned
+build cannot wedge ordinary work. On its own errors the gate fails OPEN with a
 note on stderr: a typo in a lock file must not wedge the session; the rule is
 also stated in the constitution, which is the primary control.
 
@@ -43,6 +45,8 @@ def caller_is_reviewer(payload):
 
 def decide(payload, team):
     """Return a deny reason string, or None to allow."""
+    if teamlib.mode(team) == "dormant":
+        return None  # no verification is in flight; a leftover lock must not wedge the session
     rel = teamlib.project_relative(target_path(payload.get("tool_input") or {}) or "", team, payload.get("cwd"))
     if rel is None or rel == ".team" or rel.startswith(".team/"):
         return None
@@ -55,7 +59,7 @@ def decide(payload, team):
                         f"right now. Wait for the reviewer's finding, or work on a unit whose files are free.")
             return None
         return (f"{rel} is locked by {lock.unit} (stage {lock.stage}), waiting on {', '.join(lock.waiting)}. "
-                f"Do not edit it. Create a fix unit (U-xx-fixN) or pick a unit whose files are free.")
+                f"Do not edit it. Create a fix unit ({lock.unit}-fixN) or pick a unit whose files are free.")
     return None
 
 

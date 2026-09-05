@@ -23,7 +23,12 @@ Rebuild situational awareness from `.team/` without re-reading raw files.
 
 2. Show the report to the user verbatim — it is already formatted.
 
-3. If you are the Implementation Engineer mid-run, carry out the **Next
-   actions** in the order listed, following `/team:build` Phases 4–6: unread
-   findings first, then locks, then pick a unit. If you were only asked for the
-   status, stop after showing it.
+3. What to do next depends on the mode in the report's header:
+   - **build** / **audit** — if you are the Implementation Engineer mid-run,
+     carry out the **Next actions** in the order listed, following
+     `/team:build` Phases 4–6 (an audit's equivalents are `/team:audit` A2–A4):
+     unread findings first, then locks, then pick a unit. If you were only asked
+     for the status, stop after showing it.
+   - **dormant** — the loop is off. Show the report, mention the pending-audit
+     line if there is one, and stop. Do not start units or dispatch anyone;
+     only `/team:build` or `/team:audit` reopens the team.

@@ -14,7 +14,23 @@ memory is `.team/` in the project root, not your conversation.
 - `.team/locks/` — which files specialists currently own.
 - `.team/findings/` — specialist reports. Read them before deciding what to do next.
 
-This protocol is active only when the user invokes `/team:build` or `.team/` exists.
+## Modes
+
+`.team/state.json` holds a `mode`, and it decides whether this protocol applies
+at all:
+
+- **build** — `/team:build` is running: the loop in that skill is your job.
+- **audit** — `/team:audit` is running: same loop, over commits already made.
+- **dormant** — a build or audit finished. **The protocol is off.** Answer the
+  user like any ordinary session: no spec, no units, no locks, no dispatches, no
+  matter how big the request looks. Commits are journalled for later, and after
+  you commit you record why in one line:
+  `python3 <plugin>/scripts/team-journal.py intent <sha> "<why>"`. Do not
+  re-enter the loop on your own — `/team:build` (new work) and `/team:audit`
+  (verify what has piled up) are the only ways back in, and only the user calls
+  them.
+
+A `.team/` with no `state.json` predates modes and is treated as `build`.
 
 ## Hard rules
 
@@ -30,7 +46,9 @@ This protocol is active only when the user invokes `/team:build` or `.team/` exi
    `handled`, `deferred: <why>`, or `rejected: <why>`.
 4. **Done rule.** You are not finished until every acceptance criterion in
    `spec.md` is marked verified by a specialist, a final QA dispatch has run,
-   every lock is released, and every finding is resolved. Findings that reveal
+   every lock is released, and every finding is resolved. Then you *are*
+   finished: close the team (`scripts/team-state.py close`) so it goes dormant
+   rather than following the user into the next prompt. Findings that reveal
    unmet criteria become new units of work; keep looping until the spec holds.
    This applies at any scope — a whole application loops the same way a single
    function does, just with more units. A Stop gate blocks you once per turn
@@ -65,7 +83,9 @@ else is pickable or at the final pass.
 
 ## Commands
 
-- `/team:build <goal>` — full runbook and templates.
+- `/team:build <goal>` — full runbook and templates. A one-off: it ends dormant.
+- `/team:audit` — verify the commits made since the last checkpoint, in the same
+  loop. The one-off to run after iterating normally for a while.
 - `/team:status` — rebuild situational awareness and act on its "Next
   actions". Run it after compaction or interruption.
 - `/team:release <unit>` — release a stale lock via synthetic blocked findings.

@@ -30,7 +30,8 @@ def table(headers, rows):
 
 
 def render(d, root):
-    out = ["# Team status", f"team: {d['team_dir']}" + ("  [PAUSED]" if d["paused"] else ""),
+    out = ["# Team status",
+           f"team: {d['team_dir']}  mode: {d['mode'].upper()}" + ("  [PAUSED]" if d["paused"] else ""),
            f"git: {git('rev-parse', '--abbrev-ref', 'HEAD', cwd=root) or '?'} @ {git('rev-parse', '--short', 'HEAD', cwd=root) or '?'}",
            f"spec: {d['spec_title'] or '(no spec.md)'}", ""]
     out.append("## Criteria")
@@ -62,12 +63,24 @@ def render(d, root):
     fs = sorted(d["findings"], key=lambda f: (bool(f["status"]), f["file"]))
     out += table(["file", "role", "unit", "verdict", "status"],
                  [(f["file"], f["role"], f["unit"], f["verdict"], f["status"] or "UNREAD") for f in fs])
+    p = d.get("pending") or {}
+    if d["mode"] == "dormant" or p.get("commits"):
+        out += ["", "## Pending audit"]
+        out += table(["range", "units", "commits", "files", "lines", "pressure"],
+                     [(p.get("range", "?"), p.get("units", 0), p.get("commits", 0),
+                       p.get("files", 0), p.get("churn", 0), f"{p.get('pressure', 0):.2f}")])
+        budgets = p.get("budgets") or {}
+        if budgets:
+            out.append(f"  budgets: {int(budgets['churn'])} lines / {int(budgets['units'])} units"
+                       f" — pressure >= 1.00 recommends an audit")
     out += ["", "## Next actions"]
     acts = teamlib.next_actions(d)
     if d["paused"]:
         out.append("Team is PAUSED (`.team/paused` exists): the Stop gate is off. Run `/team:resume` to continue.")
     if not d["has_spec"]:
         acts = ["No spec yet: start with `/team:build <goal>`."]
+    elif d["mode"] == "dormant" and not acts:
+        acts = ["Dormant, nothing unaudited. Work normally; `/team:build <goal>` starts new work."]
     elif not acts:
         acts = ["Nothing open: the spec holds and the final pass is done."]
     out += [f"{i}. {a}" for i, a in enumerate(acts, 1)]
@@ -83,7 +96,7 @@ def main():
     if team is None:
         print(f"no .team/ found at or above {Path.cwd()}")
         return
-    d = teamlib.snapshot(team, args.stale_minutes)
+    d = teamlib.snapshot(team, args.stale_minutes, sync=True)
     if args.json:
         d["next_actions"] = teamlib.next_actions(d)
         print(json.dumps(d, indent=2))

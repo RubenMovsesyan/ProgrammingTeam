@@ -29,7 +29,7 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/team-context.py\" UserPromptSubmit",
-            "timeout": 5
+            "timeout": 10
           }
         ]
       }
@@ -42,6 +42,18 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/team-context.py\" SessionStart",
             "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Bash|bash|exec|run_command)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/team-journal.py\" hook",
+            "timeout": 10
           }
         ]
       }

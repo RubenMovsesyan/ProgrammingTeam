@@ -5,6 +5,9 @@ Blocks at most once per turn (passes when `stop_hook_active` is set), so it can
 never loop. Passes silently when:
 
   - there is no .team/ at or above the working directory;
+  - the team is dormant (a build or audit finished): the loop is over, and an
+    ordinary prompt must not be dragged back into it. Only /team:build or
+    /team:audit arms this gate again;
   - .team/paused exists (the user wants to talk; see /team:pause);
   - stop_hook_active is true (we already blocked once this turn);
   - an unread finding was written in the last minute. In Devin the Stop event
@@ -34,6 +37,8 @@ def main():
     payload = teamlib.read_payload()
     team = teamlib.find_team_dir(payload.get("cwd") or os.getcwd())
     if team is None or teamlib.paused(team) or payload.get("stop_hook_active"):
+        return
+    if teamlib.mode(team) == "dormant":
         return
     if teamlib.fresh_unread_findings(team):
         return

@@ -31,7 +31,9 @@ def table(headers, rows):
 
 def render(d, root):
     out = ["# Team status",
-           f"team: {d['team_dir']}  mode: {d['mode'].upper()}" + ("  [PAUSED]" if d["paused"] else ""),
+           f"team: {d['team_dir']}  mode: {d['mode'].upper()}"
+           + (f"  profile: {d['profile'].upper()}" if d.get("profile", "full") != "full" else "")
+           + ("  [PAUSED]" if d["paused"] else ""),
            f"git: {git('rev-parse', '--abbrev-ref', 'HEAD', cwd=root) or '?'} @ {git('rev-parse', '--short', 'HEAD', cwd=root) or '?'}",
            f"spec: {d['spec_title'] or '(no spec.md)'}", ""]
     out.append("## Criteria")

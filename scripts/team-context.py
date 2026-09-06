@@ -10,7 +10,10 @@ active, so installing the plugin has no effect on ordinary projects.
 What it injects depends on the mode in .team/state.json: `build` and `audit` get
 the constitution plus live state; `dormant` gets a few lines saying how much work
 is waiting to be audited and nothing else. A finished team must not keep pulling
-the loop into unrelated prompts.
+the loop into unrelated prompts. The `lite` profile gets constitution-lite.md
+instead — a shorter file whose rules end the run after one verification wave per
+unit, so that injecting it on every prompt is cheap and says the opposite of
+"keep looping".
 
 Never blocks and never exits non-zero: this is context, not a gate.
 """
@@ -23,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import teamlib  # noqa: E402
 
 CONSTITUTION = Path(__file__).resolve().parent / "constitution.md"
+CONSTITUTION_LITE = Path(__file__).resolve().parent / "constitution-lite.md"
 JOURNAL_SCRIPT = Path(__file__).resolve().parent / "team-journal.py"
 
 
@@ -50,8 +54,9 @@ def dormant_state(team):
 
 
 def live_state(team):
+    prof = teamlib.profile(team)
     lines = ["## Live team state (generated)", f"Team directory: {team}",
-             f"Mode: {teamlib.mode(team)}"]
+             f"Mode: {teamlib.mode(team)}" + (f" (profile: {prof})" if prof != "full" else "")]
     locks = teamlib.held_locks(team)
     if locks:
         lines.append("Held locks (do NOT edit these files):")
@@ -90,10 +95,11 @@ def main():
     if teamlib.mode(team) == "dormant":
         context = dormant_state(team)
     else:
+        path = CONSTITUTION_LITE if teamlib.profile(team) == "lite" else CONSTITUTION
         try:
-            constitution = CONSTITUTION.read_text()
+            constitution = path.read_text()
         except OSError:
-            constitution = "(constitution.md missing from plugin; rules unavailable)"
+            constitution = f"({path.name} missing from plugin; rules unavailable)"
         context = constitution.rstrip() + "\n\n" + live_state(team)
     print(json.dumps({"hookSpecificOutput": {"hookEventName": event, "additionalContext": context}}))
 

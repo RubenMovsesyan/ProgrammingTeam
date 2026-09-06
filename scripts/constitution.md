@@ -84,6 +84,8 @@ else is pickable or at the final pass.
 ## Commands
 
 - `/team:build <goal>` — full runbook and templates. A one-off: it ends dormant.
+- `/team:build-lite <goal>` — the same team on a budget: large units, one
+  verification wave each, one fix-and-recheck, no final pass. Also a one-off.
 - `/team:audit` — verify the commits made since the last checkpoint, in the same
   loop. The one-off to run after iterating normally for a while.
 - `/team:status` — rebuild situational awareness and act on its "Next

@@ -3,13 +3,18 @@
 
 Usage:
   team-state.py show
-  team-state.py init [--baseline <sha>]        # mode=build, baseline=HEAD
+  team-state.py init [--baseline <sha>] [--profile full|lite]
   team-state.py mode <build|audit|dormant>
+  team-state.py profile <full|lite>            # full = /team:build, lite = /team:build-lite
   team-state.py checkpoint [<sha>]             # default HEAD
   team-state.py close                          # mode=dormant + checkpoint=HEAD
 
-`close` is how a build (Phase 6) or an audit (A4) hands the project back to
-ordinary work: the loop stops, the constitution stops being injected, and the
+`profile` selects which runbook the hooks and the Stop gate enforce: `full` is
+the /team:build loop, `lite` the single-wave /team:build-lite one. `close`
+resets it to `full`, so the next audit is never held to lite's rules.
+
+`close` is how a build (Phase 6), a lite build (its Phase 6) or an audit (A4)
+hands the project back to ordinary work: the loop stops, the constitution stops being injected, and the
 Stop gate goes quiet until the next /team:build or /team:audit.
 
 Exits 1 with a message when there is no .team/ or the arguments are wrong.
@@ -35,8 +40,11 @@ def main():
     sub.add_parser("show")
     init = sub.add_parser("init")
     init.add_argument("--baseline")
+    init.add_argument("--profile", choices=teamlib.PROFILES, default="full")
     m = sub.add_parser("mode")
     m.add_argument("mode", choices=teamlib.MODES)
+    pr = sub.add_parser("profile")
+    pr.add_argument("profile", choices=teamlib.PROFILES)
     cp = sub.add_parser("checkpoint")
     cp.add_argument("sha", nargs="?", default="HEAD")
     sub.add_parser("close")
@@ -54,10 +62,12 @@ def main():
 
     if args.cmd == "init":
         baseline = resolve(root, args.baseline or "HEAD") or ""
-        state = teamlib.write_state(team, mode="build", baseline=baseline,
+        state = teamlib.write_state(team, mode="build", baseline=baseline, profile=args.profile,
                                     since=datetime.now(timezone.utc).isoformat())
         if not state.get("checkpoint"):
             state = teamlib.write_state(team, checkpoint=baseline)
+    elif args.cmd == "profile":
+        state = teamlib.write_state(team, profile=args.profile)
     elif args.cmd == "mode":
         state = teamlib.write_state(team, mode=args.mode,
                                     since=datetime.now(timezone.utc).isoformat())
@@ -69,11 +79,12 @@ def main():
         state = teamlib.write_state(team, checkpoint=sha)
     else:  # close
         sha = resolve(root, "HEAD") or ""
-        state = teamlib.write_state(team, mode="dormant", checkpoint=sha,
+        state = teamlib.write_state(team, mode="dormant", checkpoint=sha, profile="full",
                                     since=datetime.now(timezone.utc).isoformat())
         teamlib.sync_journal(team)  # the audited range is behind us; the journal empties
 
-    print(f"mode: {state['mode']}  checkpoint: {(state.get('checkpoint') or '(none)')[:12]}")
+    print(f"mode: {state['mode']}  profile: {state.get('profile', 'full')}  "
+          f"checkpoint: {(state.get('checkpoint') or '(none)')[:12]}")
     return 0
 
 

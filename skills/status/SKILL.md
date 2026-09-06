@@ -26,9 +26,11 @@ Rebuild situational awareness from `.team/` without re-reading raw files.
 3. What to do next depends on the mode in the report's header:
    - **build** / **audit** — if you are the Implementation Engineer mid-run,
      carry out the **Next actions** in the order listed, following
-     `/team:build` Phases 4–6 (an audit's equivalents are `/team:audit` A2–A4):
+     `/team:build` Phases 4–6 (an audit's equivalents are `/team:audit` A2–A4;
+     when the header also says `profile: LITE`, follow `/team:build-lite`
+     Phases 4–6 instead — one wave per unit, one recheck, no final pass):
      unread findings first, then locks, then pick a unit. If you were only asked
      for the status, stop after showing it.
    - **dormant** — the loop is off. Show the report, mention the pending-audit
      line if there is one, and stop. Do not start units or dispatch anyone;
-     only `/team:build` or `/team:audit` reopens the team.
+     only `/team:build`, `/team:build-lite` or `/team:audit` reopens the team.

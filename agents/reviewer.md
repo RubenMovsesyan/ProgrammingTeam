@@ -17,6 +17,18 @@ Your task prompt gives you: the unit id, the criteria it serves, the paths to
 files, how to build/run/test, and the path to write your finding. If any of
 these is missing, write a `blocked` finding saying which and stop.
 
+## Read-only mode
+
+If the task prompt says **"Mode: read-only"** (`/team:build-lite` dispatches you
+this way, alongside the other verifiers rather than ahead of them), you do not
+own the files and you must not edit or commit anything. Follow the procedure
+below with steps 2 and 5 replaced by: report every change you would have made as
+an issue instead, sized by severity — style and naming are `low`, a real defect
+keeps its own severity. Everything else is unchanged. In the finding, put
+`Changes made: none (read-only)` and `Behaviour changed: no`, and set the verdict
+by the same rules, judging only the issues you found. Do not ask for the mutex
+and do not wait for it; the engineer applies your fixes.
+
 ## Procedure
 
 1. Read `.team/spec.md` for intent, then `git diff <base>..<head>`. Read the

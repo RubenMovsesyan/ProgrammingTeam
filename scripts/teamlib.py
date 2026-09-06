@@ -11,12 +11,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-PLAN_STATUSES = ("todo", "in-progress", "verifying", "verified", "needs-fix")
+# `attention` is lite-only and terminal: the unit used its one fix-and-recheck
+# and still failed, so it is reported to the user instead of iterated on again.
+PLAN_STATUSES = ("todo", "in-progress", "verifying", "verified", "needs-fix", "attention")
 CRITERIA_STATUSES = ("unverified", "verified", "failed")
 LOCK_STAGES = ("review", "verify")
 STALE_MINUTES = 30
 
 MODES = ("build", "audit", "dormant")
+PROFILES = ("full", "lite")
 STATE_FILE = "state.json"
 JOURNAL_FILE = "journal.jsonl"
 DEFAULT_BUDGETS = {"churn": 2000, "units": 15}
@@ -248,6 +251,8 @@ def read_state(team):
             except (KeyError, TypeError, ValueError):
                 pass
     state["budgets"] = budgets
+    if state.get("profile") not in PROFILES:
+        state["profile"] = "full"
     return state
 
 
@@ -266,6 +271,12 @@ def write_state(team, **fields):
 def mode(team):
     m = read_state(team).get("mode")
     return m if m in MODES else "build"
+
+
+def profile(team):
+    """`full` (the /team:build loop) or `lite` (/team:build-lite: one verification
+    wave per unit, one fix-and-recheck, no final pass)."""
+    return read_state(team).get("profile", "full")
 
 
 def checkpoint(team):
@@ -474,6 +485,7 @@ def snapshot(team, stale_minutes=STALE_MINUTES, sync=False):
     return {
         "team_dir": str(team),
         "mode": mode(team),
+        "profile": profile(team),
         "checkpoint": checkpoint(team),
         "pending": pending(team, sync=sync),
         "spec_title": spec_title(team),
@@ -501,6 +513,70 @@ def pending_line(p):
                    if p.get("pressure", 0) >= 1.0 else " Run `/team:audit` to verify them.")
 
 
+def _open_state(d):
+    """The pieces every profile's next-actions list is built from."""
+    plan = d["plan"] or []
+    return {
+        "unread": [f["file"] for f in d["findings"] if not f["status"]],
+        "held": [l for l in d["locks"] if l["held"]],
+        "stale": [l for l in d["locks"] if l["held"] and l["stale"]],
+        "broken": [l for l in d["locks"] if l["error"]],
+        "counts": {s: sum(1 for r in plan if r["status"] == s) for s in PLAN_STATUSES},
+        "plan": plan,
+    }
+
+
+def _lock_actions(d, o):
+    """Unreadable and stale locks — identical advice under every profile."""
+    acts = []
+    for l in o["broken"]:
+        acts.append(f"Lock {l['unit']} is unreadable: fix or remove `.team/locks/{l['unit']}.json`.")
+    for l in o["stale"]:
+        acts.append(f"Lock {l['unit']} has waited {fmt_age(l['age_minutes'])} on {', '.join(l['waiting'])} "
+                    f"(> {d['stale_minutes']}m): check the subagent panel; re-dispatch, or run `/team:release {l['unit']}`.")
+    return acts
+
+
+def lite_next_actions(d):
+    """Actions for a /team:build-lite run.
+
+    Lite never asks for a second verification round: one wave per unit, at most
+    one fix-and-recheck, no final pass. A unit that fails its recheck is set
+    `attention` — terminal, reported to the user, and never counted as open, so
+    the Stop gate lets the run close instead of pushing another cycle."""
+    o = _open_state(d)
+    counts, plan = o["counts"], o["plan"]
+    acts = []
+    if o["unread"]:
+        acts.append(f"Process {len(o['unread'])} unread finding(s) (Phase 5, single pass): " + ", ".join(o["unread"]))
+    acts += _lock_actions(d, o)
+    if counts["needs-fix"]:
+        acts.append(f"{counts['needs-fix']} unit(s) needs-fix: apply the fixes, commit, and re-dispatch only the "
+                    "roles that returned `fail` — this is the one allowed recheck. If it fails again, set the unit "
+                    "`attention` and report it; do not iterate a third time.")
+    if d["plan"] is None:
+        acts.append("Spec exists but no plan.md: write the plan (Phase 2) as a few large units.")
+    elif d["free_todo"]:
+        acts.append("Pick a unit whose files are free (Phase 4): " + ", ".join(d["free_todo"]))
+    elif counts["todo"] and o["held"]:
+        oldest = max(o["held"], key=lambda l: l["age_minutes"] or 0)
+        acts.append(f"Nothing pickable — every todo unit touches locked files. Wait on lock {oldest['unit']} "
+                    f"(waiting on {', '.join(oldest['waiting'])}) with a blocking read.")
+    open_units = counts["todo"] or counts["in-progress"] or counts["verifying"] or counts["needs-fix"]
+    if not open_units and not o["held"] and not o["unread"]:
+        attention = [r["unit"] for r in plan if r["status"] == "attention"]
+        failed = [c["id"] for c in d["criteria"] if c["status"] == "failed"]
+        flag = ""
+        if attention or failed:
+            flag = (" Flag " + ", ".join(attention + failed) + " for the user to decide on;"
+                    " do not start another round.")
+        acts.append("Nothing open: close the run (Phase 6) with `team-state.py close`, then report."
+                    " There is no final pass in lite — `/team:audit` is the safety net." + flag)
+    elif not acts and o["held"]:
+        acts.append("Waiting on specialists: " + ", ".join(f"{l['unit']} ({', '.join(l['waiting'])})" for l in o["held"]))
+    return acts
+
+
 def next_actions(d):
     """Ordered, human-readable actions for the engineer. Empty list == nothing open.
 
@@ -512,6 +588,8 @@ def next_actions(d):
     if d.get("mode") == "dormant":
         line = pending_line(d.get("pending"))
         return [f"Dormant — work normally, the team loop is off. {line}"] if line else []
+    if d.get("profile") == "lite":
+        return lite_next_actions(d)
     phase = {"finding": "A-loop", "pick": "A2", "final": "A3"} if d.get("mode") == "audit" else \
             {"finding": "Phase 5", "pick": "Phase 4", "final": "Phase 6"}
     unread = [f["file"] for f in d["findings"] if not f["status"]]

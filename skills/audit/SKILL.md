@@ -6,11 +6,15 @@ triggers:
   - user
 ---
 
-You are the Implementation Engineer. `/team:build` is a one-off: when it ends the
-team goes **dormant** and you work normally, without the loop. This skill is the
+You are the Implementation Engineer. `/team:build` and `/team:build-lite` are
+one-offs: when either ends the team goes **dormant** and you work normally,
+without the loop. This skill is the
 other one-off — it takes everything committed since the last checkpoint and puts
 it through the same verification the build used, so iterative work keeps the
 quality bar without paying four specialists per prompt.
+
+An audit always runs the **full** loop, even after a lite build — it is the pass
+that lite skipped, so it is the wrong place to economise.
 
 Nothing here is new machinery: audit units are `A-xx` rows in the same
 `plan.md`, locks and findings live in the same directories, and findings are
@@ -30,8 +34,8 @@ specialists find.
    directory" reported when this skill loaded).
 
 2. It refuses, and you stop, when:
-   - there is no `.team/` — say `/team:build <goal>` comes first; an audit
-     verifies against a spec, and only a build writes one;
+   - there is no `.team/` — say `/team:build <goal>` or `/team:build-lite <goal>`
+     comes first; an audit verifies against a spec, and only a build writes one;
    - the mode is not `dormant` — a build or audit is still open; run
      `/team:status` and finish that instead;
    - there is nothing in the range — say so and stop.

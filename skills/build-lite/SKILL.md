@@ -147,16 +147,27 @@ per unit:
    `verified`, `not met` → `failed`, `cannot determine` → leave it and treat the
    reason as an issue.
 4. **Recheck — the one budget.** If any role returned `fail` on something you
-   just fixed, set the unit `needs-fix`, then re-dispatch **only those roles**,
-   once, against the new HEAD, with a fresh lock at `stage: verify`. Exclude the
-   reviewer: you applied its issues yourself, there is nothing to re-review.
-   Typically this is `spec-checker` alone for a criterion, or `test-writer` for
-   a failing test.
-5. **Settle the unit.** After the recheck:
+   just fixed, set the unit `needs-fix` and re-dispatch **only those roles**,
+   once, against the new HEAD. Exclude the reviewer: you applied its issues
+   yourself, there is nothing to re-review. Typically this is `spec-checker`
+   alone for a criterion, or `test-writer` for a failing test.
+
+   **The recheck is its own unit id: `U-xx-r1`.** Lock
+   `.team/locks/U-xx-r1.json` (`unit: "U-xx-r1"`, `stage: "verify"`, the same
+   files, only the failing roles as `verifiers`), findings
+   `<role>-U-xx-r1.md`. Do not reuse `U-xx`: its wave-1 findings already exist,
+   so a lock named `U-xx` counts as satisfied the instant it is written — the
+   files are never protected — and the recheck's finding overwrites a handled
+   one with an unread one, which reopens the run after it should have closed.
+5. **Settle the unit — in this turn.** As soon as every verifier has reported:
    - nothing failing → `verified`;
    - still failing → **`attention`**. Leave the criterion as the spec-checker
      left it, write down what is still wrong, and move on. Do not open a third
      round. `attention` is terminal and does not block the close.
+
+   `needs-fix` and `verifying` are states you pass through, never states you end
+   a turn in. A unit left unsettled keeps the team armed, and the next unrelated
+   prompt gets pulled back into the loop instead of being answered normally.
 6. A `blocked` finding means the specialist could not do its job (missing tool,
    cannot build). Fix the cause and re-dispatch that role — a `blocked` finding
    is not a verification result and does not consume the recheck budget.
@@ -165,6 +176,12 @@ per unit:
 
 When no unit is `todo`, `in-progress`, `verifying` or `needs-fix`, and no lock is
 held. Units at `attention` do not hold this up.
+
+**Close before you report, not after.** The run is not over because you have
+written the summary; it is over when the state says `dormant`. A finished-looking
+run whose state still says `build` keeps the lite constitution and the Stop gate
+armed, and the next unrelated prompt re-enters the loop and starts dispatching
+specialists.
 
 1. ```sh
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/team-state.py" close

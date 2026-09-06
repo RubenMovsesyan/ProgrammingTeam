@@ -21,6 +21,12 @@ def git(*args, cwd):
         return ""
 
 
+def clip(text, width=96):
+    """Criteria are long and often wrap in spec.md; the table needs one line."""
+    text = str(text)
+    return text if len(text) <= width else text[:width - 1] + "\u2026"
+
+
 def table(headers, rows):
     if not rows:
         return ["  (none)"]
@@ -37,7 +43,7 @@ def render(d, root):
            f"git: {git('rev-parse', '--abbrev-ref', 'HEAD', cwd=root) or '?'} @ {git('rev-parse', '--short', 'HEAD', cwd=root) or '?'}",
            f"spec: {d['spec_title'] or '(no spec.md)'}", ""]
     out.append("## Criteria")
-    out += table(["id", "status", "text"], [(c["id"], c["status"], c["text"]) for c in d["criteria"]])
+    out += table(["id", "status", "text"], [(c["id"], c["status"], clip(c["text"])) for c in d["criteria"]])
     if d["criteria"]:
         cc = {s: sum(1 for c in d["criteria"] if c["status"] == s) for s in teamlib.CRITERIA_STATUSES}
         out.append("  " + ", ".join(f"{n} {s}" for s, n in cc.items()))

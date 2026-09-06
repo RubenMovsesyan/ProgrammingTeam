@@ -22,12 +22,22 @@ three differences that exist to keep the run short. Do not reintroduce the loop.
    there is no second stage.
 2. **One fix-and-recheck.** When findings come back, fix the high-severity
    issues yourself, in place, and commit. Then re-dispatch **only the roles that
-   returned `fail`**, once. That is the whole budget. If a role fails again, set
-   the unit `attention` in `plan.md`, leave the criterion as the spec-checker
-   left it, and report it to the user to decide. Never open a third round.
-   Everything not fixed is `deferred: lite — reported, not re-verified`.
+   returned `fail`**, once, as a separate unit id `U-xx-r1`: lock
+   `.team/locks/U-xx-r1.json`, findings `<role>-U-xx-r1.md`. Never reuse the
+   first wave's finding paths — a lock whose finding file already exists is
+   released the moment it is written, and the recheck would overwrite a handled
+   finding with an unread one, reopening a run that should have closed. That is
+   the whole budget. If a role fails again, set the unit `attention` in
+   `plan.md`, leave the criterion as the spec-checker left it, and report it to
+   the user to decide. Never open a third round. Everything not fixed is
+   `deferred: lite — reported, not re-verified`.
 3. **No final pass.** When no unit is open and no lock is held, close the run.
    `/team:audit` is the safety net for whole-spec verification.
+4. **Settle every unit in the turn you read its findings.** `needs-fix` and
+   `verifying` are states you pass through, never states you end a turn in: once
+   every verifier has reported, the unit becomes `verified` or `attention`
+   before you answer the user. An unsettled unit keeps the team armed, and the
+   next unrelated prompt is pulled back into the loop.
 
 ## Rules that still apply
 
@@ -47,8 +57,10 @@ three differences that exist to keep the run short. Do not reintroduce the loop.
 
 Finished when no unit is `todo`, `in-progress`, `verifying` or `needs-fix`, and
 no lock is held. Units at `attention` do **not** block closing — they are the
-report. Then run `scripts/team-state.py close`: the mode goes dormant, this
-constitution stops being injected, and later prompts are answered normally.
+report. Run `scripts/team-state.py close` **before** you report to the user, not
+after: the mode goes dormant, this constitution stops being injected, and later
+prompts are answered normally. Reporting a finished run while the state still
+says `build` is how the next unrelated prompt ends up dispatching specialists.
 
 ## Commands
 

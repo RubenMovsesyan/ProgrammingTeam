@@ -20,6 +20,11 @@ STALE_MINUTES = 30
 
 MODES = ("build", "audit", "dormant")
 PROFILES = ("full", "lite")
+# A lite recheck runs as its own unit id, `U-xx-r1`, so its lock and its finding
+# files do not collide with the first wave's. Reusing `U-xx` releases the lock
+# instantly (the wave-1 finding already exists) and overwrites a handled finding
+# with an unread one, which reopens the run after it should have closed.
+RECHECK_SUFFIX = "-r1"
 STATE_FILE = "state.json"
 JOURNAL_FILE = "journal.jsonl"
 DEFAULT_BUDGETS = {"churn": 2000, "units": 15}
@@ -199,15 +204,22 @@ def spec_title(team):
     return m.group(1).strip() if m else "(untitled)"
 
 
+# A criterion is a bullet that ends `— status: <value>`. Both the text and the
+# separator may wrap: real specs put the em dash at the end of one line and
+# `status:` at the start of the next. The text stops at the next `- AC-` bullet
+# so that one criterion missing its status cannot swallow the one after it.
+CRITERION_RE = re.compile(
+    r"^- (AC-\d+[a-z]?):\s*((?:(?!^- AC-\d).)*?)\s*[—–-]+\s*status:\s*(\S+)\s*$",
+    re.M | re.S)
+
+
 def criteria(team):
     """[(id, status, text)] from spec.md; None if no spec."""
     spec = Path(team) / "spec.md"
     if not spec.exists():
         return None
-    out = []
-    for m in re.finditer(r"^- (AC-\d+):\s*(.*?)\s*[—–-]+\s*status:\s*(\S+)\s*$", _read(spec), re.M):
-        out.append((m.group(1), m.group(3), m.group(2)))
-    return out
+    return [(m.group(1), m.group(3), " ".join(m.group(2).split()))
+            for m in CRITERION_RE.finditer(_read(spec))]
 
 
 def criteria_counts(team):
@@ -541,19 +553,42 @@ def lite_next_actions(d):
     """Actions for a /team:build-lite run.
 
     Lite never asks for a second verification round: one wave per unit, at most
-    one fix-and-recheck, no final pass. A unit that fails its recheck is set
+    one recheck (`U-xx-r1`), no final pass. A unit that fails its recheck is set
     `attention` — terminal, reported to the user, and never counted as open, so
-    the Stop gate lets the run close instead of pushing another cycle."""
+    the Stop gate lets the run close instead of pushing another cycle.
+
+    Every action here drives toward closing. A unit is settled in the turn its
+    findings are read: a run left with an unsettled unit stays armed, and the
+    next unrelated prompt is dragged back into the loop."""
     o = _open_state(d)
     counts, plan = o["counts"], o["plan"]
+    # Rechecks already spent, from either their lock or their findings.
+    spent = {u[:-len(RECHECK_SUFFIX)] for u in
+             [f["unit"] for f in d["findings"]] + [l["unit"] for l in d["locks"]]
+             if u.endswith(RECHECK_SUFFIX)}
+    held_units = {l["unit"] for l in o["held"]}
     acts = []
     if o["unread"]:
         acts.append(f"Process {len(o['unread'])} unread finding(s) (Phase 5, single pass): " + ", ".join(o["unread"]))
     acts += _lock_actions(d, o)
-    if counts["needs-fix"]:
-        acts.append(f"{counts['needs-fix']} unit(s) needs-fix: apply the fixes, commit, and re-dispatch only the "
-                    "roles that returned `fail` — this is the one allowed recheck. If it fails again, set the unit "
-                    "`attention` and report it; do not iterate a third time.")
+
+    settle, recheck = [], []
+    for r in plan:
+        if r["status"] not in ("needs-fix", "verifying"):
+            continue
+        if r["unit"] + RECHECK_SUFFIX in held_units or r["unit"] in held_units:
+            continue  # its verifiers are still running
+        (settle if r["unit"] in spent or r["status"] == "verifying" else recheck).append(r["unit"])
+    if recheck:
+        acts.append("Recheck (the one allowed) for " + ", ".join(recheck) +
+                    ": apply the fixes, commit, then re-dispatch only the roles that returned `fail` as unit "
+                    "`<unit>" + RECHECK_SUFFIX + "` — lock `.team/locks/<unit>" + RECHECK_SUFFIX + ".json`, findings "
+                    "`<role>-<unit>" + RECHECK_SUFFIX + ".md`. Never reuse the first wave's finding paths.")
+    if settle:
+        acts.append("Settle " + ", ".join(settle) + " now, in this turn: every verifier has reported and the "
+                    "recheck budget is spent. Set each unit `verified`, or `attention` if something still fails "
+                    "and report it to the user. Do not dispatch anyone for these units again.")
+
     if d["plan"] is None:
         acts.append("Spec exists but no plan.md: write the plan (Phase 2) as a few large units.")
     elif d["free_todo"]:
@@ -562,6 +597,7 @@ def lite_next_actions(d):
         oldest = max(o["held"], key=lambda l: l["age_minutes"] or 0)
         acts.append(f"Nothing pickable — every todo unit touches locked files. Wait on lock {oldest['unit']} "
                     f"(waiting on {', '.join(oldest['waiting'])}) with a blocking read.")
+
     open_units = counts["todo"] or counts["in-progress"] or counts["verifying"] or counts["needs-fix"]
     if not open_units and not o["held"] and not o["unread"]:
         attention = [r["unit"] for r in plan if r["status"] == "attention"]
@@ -570,8 +606,9 @@ def lite_next_actions(d):
         if attention or failed:
             flag = (" Flag " + ", ".join(attention + failed) + " for the user to decide on;"
                     " do not start another round.")
-        acts.append("Nothing open: close the run (Phase 6) with `team-state.py close`, then report."
-                    " There is no final pass in lite — `/team:audit` is the safety net." + flag)
+        acts.append("Nothing open: close the run (Phase 6) with `team-state.py close` — do this before you report,"
+                    " or the next unrelated prompt re-enters the loop. There is no final pass in lite;"
+                    " `/team:audit` is the safety net." + flag)
     elif not acts and o["held"]:
         acts.append("Waiting on specialists: " + ", ".join(f"{l['unit']} ({', '.join(l['waiting'])})" for l in o["held"]))
     return acts

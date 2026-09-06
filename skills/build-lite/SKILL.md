@@ -55,7 +55,11 @@ templates in `/team:build`.
    ```
 
    which records the baseline commit, sets the mode to `build` and the profile
-   to `lite`. `.team/` is committed by default so the trail survives.
+   to `lite`. It also adds `.team/` to the project's `.gitignore` if nothing
+   ignores it yet — the team's bookkeeping is scratch space for the run, not
+   history. If git already tracks files under `.team/`, `/team:status` says so;
+   untracking them (`git rm -r --cached .team`) is the user's call, so offer it,
+   do not do it.
 
 ## Phase 1 — Spec
 

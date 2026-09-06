@@ -268,6 +268,51 @@ def read_state(team):
     return state
 
 
+GITIGNORE_ENTRY = ".team/"
+
+
+def ensure_ignored(team):
+    """Make sure `.team/` is ignored by the project's git repo. Idempotent.
+
+    The team's bookkeeping is scratch space for one run, not something a user
+    wants in their history or their pull requests, so every entry point into the
+    plugin calls this. Returns True only when it actually appended the entry.
+
+    `git check-ignore` is the authority, so a rule that already covers `.team/`
+    anywhere — repo .gitignore, a parent's, ~/.config/git/ignore, .git/info/
+    exclude — is left alone. Does nothing outside a git repo, and never touches
+    files git already tracks: ignoring a tracked path has no effect, and
+    untracking it is the user's call, not a side effect of running a skill."""
+    root = project_root(team)
+    if not git(root, "rev-parse", "--is-inside-work-tree"):
+        return False
+    import subprocess
+    try:
+        ignored = subprocess.run(["git", "check-ignore", "-q", GITIGNORE_ENTRY],
+                                 cwd=str(root), capture_output=True, timeout=10).returncode == 0
+    except Exception:
+        ignored = False
+    if ignored:
+        return False
+    path = root / ".gitignore"
+    try:
+        text = path.read_text() if path.exists() else ""
+        if any(line.strip() in (GITIGNORE_ENTRY, ".team") for line in text.splitlines()):
+            return False
+        prefix = "" if (not text or text.endswith("\n")) else "\n"
+        path.write_text(f"{text}{prefix}{GITIGNORE_ENTRY}\n")
+    except OSError:
+        return False
+    return True
+
+
+def tracked_team_files(team):
+    """How many files under .team/ git already tracks. Non-zero means .gitignore
+    cannot hide them: the user has to `git rm -r --cached .team` to stop that."""
+    out = git(project_root(team), "ls-files", "--", ".team")
+    return len([l for l in out.splitlines() if l.strip()])
+
+
 def write_state(team, **fields):
     """Merge `fields` into state.json and write it atomically. Returns the state."""
     path = Path(team) / STATE_FILE
@@ -277,6 +322,7 @@ def write_state(team, **fields):
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(state, indent=2) + "\n")
     tmp.replace(path)
+    ensure_ignored(team)  # every skill arms the team through here
     return state
 
 
@@ -511,6 +557,7 @@ def snapshot(team, stale_minutes=STALE_MINUTES, sync=False):
         "findings": findings(team),
         "free_todo": [r["unit"] for r in free_todo_units(team)],
         "paused": paused(team),
+        "tracked_team_files": tracked_team_files(team),
         "stale_minutes": stale_minutes,
     }
 

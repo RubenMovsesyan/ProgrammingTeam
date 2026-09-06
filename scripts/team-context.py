@@ -87,6 +87,7 @@ def main():
     team = teamlib.find_team_dir(cwd)
     if team is None:
         return
+    teamlib.ensure_ignored(team)  # a team that predates this rule gets ignored too
     event = (
         (sys.argv[1] if len(sys.argv) > 1 else None)
         or payload.get("hook_event_name")

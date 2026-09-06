@@ -81,6 +81,9 @@ def render(d, root):
         if budgets:
             out.append(f"  budgets: {int(budgets['churn'])} lines / {int(budgets['units'])} units"
                        f" — pressure >= 1.00 recommends an audit")
+    if d.get("tracked_team_files"):
+        out += ["", f"note: git tracks {d['tracked_team_files']} file(s) under .team/, so .gitignore cannot hide "
+                    "them. `git rm -r --cached .team && git commit` stops tracking without deleting anything."]
     out += ["", "## Next actions"]
     acts = teamlib.next_actions(d)
     if d["paused"]:

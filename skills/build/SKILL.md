@@ -37,9 +37,11 @@ is its entire world.
    (`git rev-parse --is-inside-work-tree`; `git init` if not).
 3. Create `.team/`, `.team/locks/`, `.team/findings/`, then
    `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/team-state.py" init`, which records
-   the baseline commit and sets the mode to `build`. Add `.team/` to
-   `.gitignore` only if the user asks; by default it is committed so the trail
-   survives.
+   the baseline commit and sets the mode to `build`. It also adds `.team/` to
+   the project's `.gitignore` if nothing ignores it yet — the team's bookkeeping
+   is scratch space for the run, not history. If git already tracks files under
+   `.team/`, `/team:status` says so; untracking them
+   (`git rm -r --cached .team`) is the user's call, so offer it, do not do it.
 
 ## Phase 1 — Spec
 
